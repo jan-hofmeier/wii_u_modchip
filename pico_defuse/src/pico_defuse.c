@@ -501,77 +501,13 @@ void wiiu_serial_monitor()
     }
     last_16_bytes[15] = read_val;
 
-    if (!memcmp(last_16_bytes+4, MONITOR_RESET_MAGIC, 12))
-    {
-        next_wiiu_state = WIIU_STATE_NEEDS_DEFUSE;
-        printf("[Pico] Console requested reset...\n");
-        sleep_ms(500); // give it a delay
-    }
-    else if (!memcmp(last_16_bytes+4, MONITOR_RESET_PRSHHAX_MAGIC, 12))
-    {
-        printf("[Pico] Console requested prshhax prshhax reset...\n");
-        do_normal_reset();
-        sleep_ms(3000); // give it a delay
-        next_wiiu_state = WIIU_STATE_NEEDS_DEFUSE;
-    }
-    else if (!memcmp(last_16_bytes+4, MONITOR_PARALLEL_DATA_MAGIC, 12)) {
-        debug_gpio_monitor_parallel_program_init(pio, debug_gpio_monitor_parallel_sm, debug_gpio_monitor_parallel_offset, PIN_DEBUGLED_BASE, PIN_SERIALOUT_BASE, 1.0);
-        current_mode = MONITOR_SERIAL_DATA;
-        serial_data_cnt = 0;
-        printf("[Pico] Switching to parallel data mode...\n");
-    }
-    else if (!memcmp(last_16_bytes+4, MONITOR_SERIAL_DATA_MAGIC, 12)) {
-        current_mode = MONITOR_SERIAL_DATA;
-        serial_data_cnt = 0;
-        printf("[Pico] Switching to data mode...\n");
-    }
-    else if (!memcmp(last_16_bytes+4, MONITOR_SERIAL_TEXT_MAGIC, 12)) {
-        current_mode = MONITOR_SERIAL_TEXT;
-        printf("[Pico] Switching to text mode...\n");
-        printf("%s", text_buffer); // dump text buffer in case this is just a soft reboot
-        memset(text_buffer, 0, sizeof(text_buffer));
-        text_buffer_pos = 0;
-    }
-
     num_serial_loops++;
 
-    if (current_mode == MONITOR_SERIAL_DATA)
-    {
-        if (serial_data_cnt++ % 16 == 0) {
-            printf("\n");
-        }
-        printf("%02x ", read_val);
+    if (serial_data_cnt++ % 16 == 0) {
+        printf("\n");
     }
-    else if (current_mode == MONITOR_SERIAL_TEXT)
-    {
-        if (text_buffer_pos >= sizeof(text_buffer) - 4 || num_serial_loops > 16) {
-            printf("%s", text_buffer);
-            memset(text_buffer, 0, text_buffer_pos);
-            text_buffer_pos = 0;
-            num_serial_loops = 0;
-        }
-        if (!read_val)
-        {
-            // reading input
-        }
-        else if (read_val == 0xAA || read_val == 0x1B || read_val == '\t' || read_val == '\n' || read_val == '\r' || (read_val >= ' ' && read_val <= '~')) {
-            if ((read_val == '\r' && last_16_bytes[14] != '\n') || read_val == '\n') {
-                printf("%s\n", text_buffer);
-                memset(text_buffer, 0, text_buffer_pos);
-                text_buffer_pos = 0;
-            }
-            else {
-                text_buffer[text_buffer_pos++] = read_val;
-            }
-        }
-        else {
-            sprintf(text_buffer + text_buffer_pos, "%02x", read_val);
-            text_buffer_pos += 2;
-        }
-    }
-    else {
-        printf("Unknown mode?\n");
-    }
+    printf("%02x ", read_val);
+
 }
 
 void fallback_power_check()
@@ -604,7 +540,11 @@ void main()
 
     slow_one_time_init();
 
-    printf("Start state machine.\n");
+    printf("Start debug monitor\n");
+
+    while(1)
+        wiiu_serial_monitor();
+
 #if 0
     if (gpio_get(PIN_NRST)) {
         printf("[pico] Uhhh the console is on? Monitoring...\n");
